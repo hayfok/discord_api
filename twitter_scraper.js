@@ -2,7 +2,7 @@
 const sqlite3 = require('sqlite3');
 const axios = require('axios');
 const fs = require('fs');
-dotenv = require('dotenv').config({path: '/var/www/tweet-scrape/.env'});
+dotenv = require('dotenv').config({path: 'dot.env path'});
 
 
 const bearer = process.env.bearer

@@ -2,10 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Intents, REST, CommandInteraction } = require('discord.js');
 const axios = require('axios');
-const {encode, decode} = require('gpt-3-encoder');
 const { SlashCommandBuilder } = require('@discordjs/builders');
-
-
 require('dotenv').config();
 
 
@@ -13,28 +10,32 @@ const bot_token  = process.env.BOT_TOKEN;
 const gpt_token = process.env.GPT_TOKEN;
 const clientId = 'process.env.CLIENT_ID';
 
-/* static ID assignment per deployment, primarily for testing purposes */
+
+/* Static ID assignment per deployment, primarily for testing purposes */
 const sql3_path = ''; // static path to the database location on disk
 const sqlite3 = require(sql3_path);
 const bot_channel = ''; // static channel ID of the discord channel the bot is in
 const me = ''; // static id of a user for testing purposes
 
+// Build client
 const client = new Client({
         intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES],
         partials: ['MESSAGE', 'CHANNEL'],
 });
 
-
+// Log bot in
 client.login(bot_token);
-
 console.log("\n");
+
+// Test client connectivity 
 client.once('ready', bot => {
     console.log(`bot constructor network conn test for: ${bot.user.username} was successful ... \n`);
 });
 
-// static path for the discord chat message archival 
+
+// Static path for the discord chat message archival 
 const discordMessageArchivePath = '';
-// This is a local database to log all discord messages in this channel, this is used later to feed into GPT3. 
+// This is a local database to log all discord messages in this channel.
 let dbChat = new sqlite3.Database('discordMessageArchivePath', (err) => {
         if(err){
                 console.log("database for chat logging ... was: ERR  -" + err.message);
@@ -44,7 +45,8 @@ let dbChat = new sqlite3.Database('discordMessageArchivePath', (err) => {
         }
 });
 
-// static path for the discord chat message archival
+
+// Static path for the discord chat message archival
 const tweetDatabasePath = '';
 // This is a local database of tweet data I've scraped, the bot will use these to posts images or tweet text bodies. 
 let dbTweet = new sqlite3.Database('tweetDatabasePath', (err) => {
@@ -56,8 +58,10 @@ let dbTweet = new sqlite3.Database('tweetDatabasePath', (err) => {
     }
 });
 
+
 // static path to the bank database
 const bankPath = '';
+// This is a bank for a game I wrote
 let dbBank = new sqlite3.Database('bankPath', (err) => {
     if(err){
         console.log('dbBank open error' + err.message)
@@ -65,10 +69,9 @@ let dbBank = new sqlite3.Database('bankPath', (err) => {
     else {
         console.log('dbBank opened successfully')
     }
-
 });
 
-
+// Listen for incoming messages
 client.on('messageCreate', (message) => {
         if (message.channel.id === bot_channel){
             try {
@@ -88,12 +91,13 @@ client.on('messageCreate', (message) => {
                 dbBank.serialize(() => {
                         dbBank.get('SELECT * FROM vault WHERE uid = ?', bankeeId, (err, res)=> {
                                 message.channel.send(` \`\`\`css\n[hello, ${bankee}, your balance is: ${res.money}$]\`\`\` `)
+                });
             });
-    });
-}
+        }
 
 })
 
+// Write chat messages to DB
 function dbChatWrite(msgAuthor, msgAuthorId, message, msgTimestamp){
     dbChat.serialize(() => {
         dbChat.run('INSERT INTO client (username, userid, message, time) VALUES (?,?,?,?);', msgAuthor, msgAuthorId, message, msgTimestamp, (error) => {
@@ -106,20 +110,9 @@ function dbChatWrite(msgAuthor, msgAuthorId, message, msgTimestamp){
     })
 }
 
-function dbDmWrite(dmAuthor, dmAuthorId, message, dmTimestamp){
-    dbChat.serialize(() => {
-        dbChat.run('INSERT INTO client (username, userid, message, time) VALUES (?,?,?,?);', dmAuthor, dmAuthorId, message, dmTimestamp , (error) => {
-            if (error) {
-                    console.log(`ERROR INSERTING "dm context": ${message} INTO TABLE 'client'` + error.message);
-            } else {
-                    console.log(`SUCCESSFULLY INSERTED "dm context":  ${message} INTO TABLE 'client'`);
-            }
-        })
-    })
-}
-
-
+// Slash Interactions
 client.on('interactionCreate', async interaction => {
+        // USER REQUESTED AN IMAGE FROM THE DB
         if (interaction.commandName === 'photo') {
         console.log(`${interaction.user.username} initiated a photo dip ... posting photo`);
         dbTweet.serialize(() => {
@@ -133,6 +126,7 @@ client.on('interactionCreate', async interaction => {
             })
         })
     }
+    // USER REQUESTED A VIDEO FROM THE DB
     if (interaction.commandName === 'video') {
         console.log(`${interaction.user.username} initiated a video dip ... posting video`);
         dbTweet.serialize(() => {
@@ -146,6 +140,7 @@ client.on('interactionCreate', async interaction => {
             })
         })
     }
+   // USER REQUESTED TEXT FROM THE DB
    if (interaction.commandName === 'text') {
         console.log(`${interaction.user.username} initiated a text dip ... posting text` );
         dbTweet.serialize(() => {
@@ -160,6 +155,7 @@ client.on('interactionCreate', async interaction => {
 
         })
     }
+    // USER INITIATED A GPT3 PROMPT REQUEST
     if (interaction.commandName === 'prompt') {
         console.log("\n --- prompt initiated");
         const prompt = interaction.options.getString('i');
@@ -169,10 +165,7 @@ client.on('interactionCreate', async interaction => {
 
         const user = interaction.user.username;
         const msgAuthorId = interaction.user.id;
-        const msgTimestamp = 'N/A';
         console.log(`${interaction.user.username} initiated a prompt ... processing request + database write` )
-
-        dbChatWrite(user, msgAuthorId, prompt, msgTimestamp)
 
         const api = 'https://api.openai.com/v1/completions';
         const auth_header = `Bearer ${gpt_token}`;
@@ -186,7 +179,6 @@ client.on('interactionCreate', async interaction => {
                 data: {
                         model: 'text-davinci-002',
                         prompt: prompt,
-                        //suffix: suffix,
                         max_tokens: 256,
                         temperature: 1.0,
                         top_p: 1.0,
